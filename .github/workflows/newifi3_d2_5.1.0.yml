@@ -72,9 +72,9 @@ jobs:
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
     - name: Load cache
-      uses: klever1988/cachewrtbuild@main
+      uses: bonnie2980/cachewrtbuild@main
       with:
-        ccache: 'true'
+        ccache: true
         mixkey: 'mtk'
         prefix: ${{ github.workspace }}/openwrt
         
