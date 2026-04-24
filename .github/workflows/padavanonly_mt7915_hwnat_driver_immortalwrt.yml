@@ -1,0 +1,261 @@
+#
+#
+# 感谢p3terx大神的一键编译脚本
+# 
+# https://github.com/P3TERX/Actions-OpenWrt
+# Description: Build OpenWrt using GitHub Actions
+#
+#
+
+name: build Lean lede with mt7915 hwnat driver
+
+on: 
+  workflow_dispatch:
+    inputs:
+      device:
+        type: choice
+        description: 'please choice device to compile'
+        options:
+        - C-LIFE_XG1
+        - H3C_TX1800-PLUS
+        - H3C_TX1801-PLUS
+        - H3C_TX1806
+        - JCG_Q20
+        - JCG_Q10Pro
+        - KONKA_KOMI-A8
+        - MAIPU_MPAX18
+        - ZTT_RX6000
+        - Qihoo360_T6GS
+        - Qihoo360_T6M
+        - Qihoo360_T6U
+        - SIM_AX1800T
+        - HAIR_HAR_20S2U1
+        default: JCG_Q20
+env:
+  REPO_URL: https://github.com/vb1980/padavanonly_immortalwrt
+  REPO_BRANCH: mt7915_mtwifi
+  FEEDS_CONF: feeds.conf.default
+  DIY_P1_SH: scripts/diy-part1.sh
+  UPLOAD_BIN_DIR: false
+  UPLOAD_FIRMWARE: true
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    if: github.event.repository.owner.id == github.event.sender.id
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@main
+
+    - uses: Bonnie2980/variable-mapper@master
+      id: export
+      with:
+        key: "${{ github.event.inputs.device }}"
+        map: |
+          {
+            "KONKA_KOMI-A8": {
+              "CONFIG_FILE": "configs/konka_komi-a8.config",
+              "DIY_P2_SH": "scripts/diy-part2_konka_komi-a8.sh"
+            },
+            "MAIPU_MPAX18": {
+              "CONFIG_FILE": "configs/maipu_mpax18.config",
+              "DIY_P2_SH": "scripts/diy-part2_maipu_mpax18.sh"
+            },
+            "ZTT_RX6000": {
+              "CONFIG_FILE": "configs/ztt_rx6000.config",
+              "DIY_P2_SH": "scripts/diy-part2_ztt_rx6000.sh"
+            },
+            "Qihoo360_T6GS": {
+              "CONFIG_FILE": "configs/qihoo360_t6gs.config",
+              "DIY_P2_SH": "scripts/diy-part2_qihoo360_t6gs.sh"
+            },
+            "Qihoo360_T6M": {
+              "CONFIG_FILE": "configs/qihoo360_t6m.config",
+              "DIY_P2_SH": "scripts/diy-part2_qihoo360_t6m.sh"
+            },
+            "Qihoo360_T6U": {
+              "CONFIG_FILE": "configs/qihoo360_t6u.config",
+              "DIY_P2_SH": "scripts/diy-part2_qihoo360_t6u.sh"
+            },
+            "JCG_Q20": {
+              "CONFIG_FILE": "configs/jcg_q20.config",
+              "DIY_P2_SH": "scripts/diy-part2_jcg_q20.sh"
+            },
+            "JCG_Q10Pro": {
+              "CONFIG_FILE": "configs/jcg_q10pro.config",
+              "DIY_P2_SH": "scripts/diy-part2_jcg_q10pro.sh"
+            },
+            "SIM_AX1800T": {
+              "CONFIG_FILE": "configs/sim_ax1800t.config",
+              "DIY_P2_SH": "scripts/diy-part2_sim_ax1800t.sh"
+            },
+            "HAIR_HAR_20S2U1": {
+              "CONFIG_FILE": "configs/haier_har-20s2u1.config",
+              "DIY_P2_SH": "scripts/diy-part2_haier_har-20s2u1.sh"
+            },
+            "C-LIFE_XG1": {
+              "CONFIG_FILE": "configs/c-life_xg1.configs",
+              "DIY_P2_SH": "scripts/diy-part2_c-life_xg1.sh"
+            },
+            "H3C_TX1800-PLUS": {
+              "CONFIG_FILE": "configs/h3c_tx1800_plus.configs",
+              "DIY_P2_SH": "scripts/diy-part2_h3c_tx1800-plus.sh"
+            },
+            "H3C_TX1801-PLUS": {
+              "CONFIG_FILE": "configs/h3c_tx1801_plus.configs",
+              "DIY_P2_SH": "scripts/diy-part2_h3c_tx1801-plus.sh"
+            },
+            "H3C_TX1806": {
+              "CONFIG_FILE": "configs/h3c_tx1806.configs",
+              "DIY_P2_SH": "scripts/diy-part2_h3c_tx1806.sh"
+            },
+            ".*": {
+              "CONFIG_FILE": "configs/jcg_q20.config",
+              "DIY_P2_SH": "scripts/diy-part2_jcg_q20.sh"
+            }
+          }
+        export_to: env
+        mode: first_match
+
+    - name: Initialization environment
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo swapoff -a
+        sudo rm -f /swapfile /mnt/swapfile
+        sudo docker image prune -a -f
+        sudo systemctl stop docker
+        sudo snap set system refresh.retain=2
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android 2>/dev/null
+        sudo sed -i '/NVM_DIR/d;/skel/d' /root/{.bashrc,.profile}
+        sudo -E apt-get -qq purge azure-cli ghc* zulu* llvm* firefox google* dotnet* powershell openjdk* mongodb* moby* || true
+        sudo -E apt-get -qq update
+        sudo -E apt-get -qq install ack antlr3 aria2 asciidoc autoconf automake autopoint binutils bison btrfs-progs build-essential \
+        bzip2 ca-certificates ccache clang cmake coreutils cpio curl device-tree-compiler ecj fakeroot fastjar flex g++-multilib gawk \
+        gcc-multilib genisoimage gettext git gnutls-dev gperf gzip haveged help2man intltool irqbalance jq lib32gcc-s1 libc6-dev-i386 \
+        libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libncurses5-dev \
+        libncursesw5-dev libnsl-dev libpython3-dev libreadline-dev libssl-dev libtool libyaml-dev libz-dev llvm lrzsz msmtp \
+        nano ninja-build ntpdate p7zip p7zip-full patch pigz pkgconf python3 python3-cryptography python3-docutils python3-pip \
+        python3-ply python3-pyelftools python3-requests python3-setuptools qemu-utils quilt re2c rsync scons sharutils \
+        squashfs-tools subversion swig tar texinfo uglifyjs unzip upx-ucl vim wget xmlto xsltproc xxd xz-utils yasm zip zlib1g-dev zstd
+        sudo -E apt-get -qq install libfuse-dev lib32z1-dev libpcre3 libpcre3-dev clang llvm lld dos2unix
+        sudo -E apt-get -qq autoremove --purge
+        sudo -E systemctl daemon-reload
+        sudo -E apt-get -qq clean && sudo -E apt-get -qq autoclean
+        sudo timedatectl set-timezone "$TZ"
+        df -Th
+
+    - name: Create a virtual physical disk
+      run: |
+        mnt_size=$(expr $(df -h /mnt | tail -1 | awk '{print $4}' | sed 's/[[:alpha:]]//g' | sed 's/\..*//') - 1)
+        root_size=$(expr $(df -h / | tail -1 | awk '{print $4}' | sed 's/[[:alpha:]]//g' | sed 's/\..*//') - 4)
+        sudo truncate -s "${mnt_size}"G /mnt/mnt.img
+        sudo truncate -s "${root_size}"G /root.img
+        sudo losetup /dev/loop6 /mnt/mnt.img
+        sudo losetup /dev/loop7 /root.img
+        sudo pvcreate /dev/loop6
+        sudo pvcreate /dev/loop7
+        sudo vgcreate github /dev/loop6 /dev/loop7
+        sudo lvcreate -n runner -l 100%FREE github
+        sudo mkfs.xfs /dev/github/runner
+        sudo mkdir -p /workdir
+        sudo mount /dev/github/runner /workdir
+        sudo chown -R runner:runner /workdir
+        df -Th
+
+    - name: Clone source code
+      working-directory: /workdir
+      run: |
+        df -hT $PWD
+        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+
+    - name: Cache build dependencies
+      uses: stupidloud/cachewrtbuild@main
+      with:
+        ccache: true
+        mixkey: 'padavanonly_immortalwrt_ramips_mt7915_hwnat'
+        prefix: 'openwrt'
+
+    - name: Load custom feeds
+      run: |
+        [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
+        chmod +x $DIY_P1_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/$DIY_P1_SH
+
+    - name: Update feeds
+      run: cd openwrt && ./scripts/feeds update -a
+
+    - name: Install feeds
+      run: cd openwrt && ./scripts/feeds install -a
+
+    - name: Update& Install feeds again
+      run: |
+        cd openwrt && ./scripts/feeds update -a && ./scripts/feeds install -a
+
+    - name: Load custom configuration
+      run: |
+        [ -e files ] && mv files openwrt/files
+        [ -e ${{ env.CONFIG_FILE }} ] && mv ${{ env.CONFIG_FILE }} openwrt/.config
+        chmod +x ${{ env.DIY_P2_SH }}
+        cd openwrt
+        $GITHUB_WORKSPACE/${{ env.DIY_P2_SH }}
+
+    - name: Download packages
+      id: package
+      run: |
+        cd openwrt
+        make defconfig
+        make download -j8
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
+        
+    - name: Compile the firmware
+      id: compile
+      run: |
+        cd openwrt
+        echo -e "$(nproc) thread compile"
+        make -j$(nproc) || make -j1 || make -j1 V=s
+        echo "STATUS=success" >> $GITHUB_OUTPUT
+        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+        echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV 
+        
+    - name: Check space usage
+      if: (!cancelled())
+      run: df -hT
+
+    - name: Upload bin to artifact
+      uses: actions/upload-artifact@main
+      if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
+      with:
+        name: Padavanonly_immortalwrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: openwrt/bin
+        
+    - name: Organize files
+      id: organize
+      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      run: |
+        cd $GITHUB_WORKSPACE/openwrt/bin/packages
+        tar -zcvf Packages.tar.gz ./*
+        cp Packages.tar.gz $GITHUB_WORKSPACE/openwrt/bin/targets/*/*
+        cd $GITHUB_WORKSPACE/openwrt/bin/targets/*/*
+        rm -rf packages
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "STATUS=success" >> $GITHUB_OUTPUT
+
+    - name: Upload firmware to artifact
+      uses: actions/upload-artifact@main
+      if: steps.organize.outputs.status == 'success' && !cancelled()
+      with:
+        name: Heleguo_lede_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: ${{ env.FIRMWARE }}
+
+    - name: Delete workflow runs
+      uses: Mattraks/delete-workflow-runs@v2
+      with:
+        retain_days: 1
+        keep_minimum_runs: 3
